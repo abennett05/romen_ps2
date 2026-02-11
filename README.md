@@ -15,6 +15,7 @@ Romen-PS2 is a Python-based web application designed to streamline the process o
 * **Web Interface:** Manage your library via a modern React-based frontend.
 * **Database Tracking:** Maintains a local database of your owned games.
 * **Cross-Platform:** Runs seamlessly on Windows, macOS, and Linux.
+* **Game Art:** Fetches appropiate artwork for your games to view in the Romen app & OPL.
 
 ---
 
@@ -23,18 +24,19 @@ Romen-PS2 is a Python-based web application designed to streamline the process o
 If you just want to use the tool to manage your games, you do **not** need to clone this repository.
 
 1.  **Go to the [Releases Page](../../releases)**.
-2.  Download the latest `.zip` file (e.g., `romen-ps2-v0.1.0.zip`).
+2.  Download the latest `.zip` file (e.g., `romen-ps2-v0.1.1.zip`).
 3.  Unzip the folder.
 4.  **Run the script:**
     * **Windows:** Double-click `run.bat`.
     * **Mac/Linux:** Open terminal in the folder and run `./run.sh`.
+5.  **View in your browser & start uploading games!**.
 
-*Note: You must have [Python](https://www.python.org/) installed on your system.*
+*Note: You must have [Python (3.1x)](https://www.python.org/) installed on your system.*
 
 ---
 
 ## 🗺️ Roadmap
-* [ ] Network transfer to PS2 via SMB (planned).
+* [ ] Automatic Network transfer to PS2 via UDPBD (planned).
 
 ## 📄 License
 This project is open source and available under the [MIT License](LICENSE).

@@ -1,0 +1,19 @@
+{
+    "paths": {
+        "storage": "/Volumes/PS2-GAMES",
+        "uploads": "./uploads",
+        "covers_url": "https://raw.githubusercontent.com/xlenore/ps2-covers/main/covers/default"
+    },
+    "structure": [
+        "APPS",
+        "ART",
+        "CD",
+        "CFG",
+        "CFG-DEV",
+        "CHT",
+        "DVD",
+        "LNG",
+        "THM",
+        "VMC"
+    ]
+}

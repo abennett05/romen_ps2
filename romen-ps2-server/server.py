@@ -14,12 +14,14 @@ from system import *
 
 #  - - - CONFIGURABLE - - -
 WEB_APP_PATH = '../romen-ps2-front/dist/index.html' # Routes to the index.html that houses our React app.
+HOST = "0.0.0.0"
+PORT = 8000
 #  - - - CONFIGURABLE - - -
 
 # - - - APP SETUP - - -
 app = FastAPI()
 
-# Development stuff leave commented
+# Development stuff leave commented out
 """origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173"
@@ -116,5 +118,5 @@ def serve_app():
 if __name__ == "__main__":
     # system checks
     system.CheckDatabases()
-    uvicorn.run(app, host="localhost", port=8000)
+    uvicorn.run(app, host=HOST, port=PORT)
     pass

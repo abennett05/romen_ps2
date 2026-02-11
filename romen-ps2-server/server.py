@@ -13,7 +13,7 @@ import system
 from system import *
 
 #  - - - CONFIGURABLE - - -
-WEB_APP_PATH = '../romen-ps2-front/dist/index.html' # Routes to the index.html that houses our React app.
+WEB_APP_PATH = './dist/index.html' # Routes to the index.html that houses our React app.
 HOST = "0.0.0.0"
 PORT = 8000
 #  - - - CONFIGURABLE - - -
@@ -118,5 +118,6 @@ def serve_app():
 if __name__ == "__main__":
     # system checks
     system.CheckDatabases()
+    print(f'[SERVER] Romen running on {HOST}:{PORT}')
     uvicorn.run(app, host=HOST, port=PORT)
     pass

@@ -6,7 +6,7 @@
 
 > **Status:** 🚧 Public Beta (v0.1.1)
 
-Romen-PS2 is a Python-based web application designed to streamline the process of managing PS2 game backups. It automates the tedious tasks required for Open PS2 Loader (OPL) compatibility, such as identifying serial numbers and renaming files correctly.
+**Romen** is a Python-based web application designed to streamline the process of managing PS2 game backups. It automates the tedious tasks required for Open PS2 Loader (OPL) compatibility and **allows any device on your local network to upload games**.
 
 ## ✨ Features
 
@@ -15,7 +15,15 @@ Romen-PS2 is a Python-based web application designed to streamline the process o
 * **Web Interface:** Manage your library via a modern React-based frontend.
 * **Database Tracking:** Maintains a local database of your owned games.
 * **Cross-Platform:** Runs seamlessly on Windows, macOS, and Linux.
-* **Game Art:** Fetches appropiate artwork for your games to view in the Romen app & OPL.
+* **Game Art:** Fetches appropiate artwork for your games to view in the **Romen** app & OPL.
+
+---
+
+## 📋 Requirements
+
+* 💿 Additional Storage Device formatted in **exFAT**
+   * Spare USB Drive, SATA HDD, NVME M.2 SSD, whatever you have likely works!
+* 🐍 [Python (3.1x)](https://www.python.org/) installed on the system running Romen.
 
 ---
 
@@ -31,12 +39,7 @@ If you just want to use the tool to manage your games, you do **not** need to cl
     * **Mac/Linux:** Open terminal in the folder and run `./run.sh`.
 5.  **View in your browser & start uploading games!**.
 
-*Note: You must have [Python (3.1x)](https://www.python.org/) installed on your system.*
-
 ---
-
-## 🗺️ Roadmap
-* [ ] Automatic Network transfer to PS2 via UDPBD (planned).
 
 ## 📄 License
 This project is open source and available under the [MIT License](LICENSE).

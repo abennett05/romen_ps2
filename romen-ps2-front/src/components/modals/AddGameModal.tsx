@@ -10,7 +10,6 @@ interface AddGameModalProps {
     onClose: () => void;
     queue: FileUploadItem[];
     onUpload: (files: FileList | null) => void;
-    // NEW: Add this so we can delete items
     onRemove: (fileName: string) => void; 
 }
 

@@ -163,8 +163,7 @@ def ProcessUpload(temp_path: str):
 
 def download_cover(serial):
     try:
-        clean_serial = db.clean_serial(serial)
-        filename = f"{clean_serial}_COV.jpg"
+        filename = f"{serial}_COV.jpg"
         
         # Ensure ART folder exists
         art_dir = os.path.join(CONFIG.LIB_PATH, 'ART')

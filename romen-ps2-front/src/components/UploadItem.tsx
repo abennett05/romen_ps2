@@ -1,6 +1,6 @@
 import React from 'react';
 import IconButton from './IconButton';
-import { Trash, CheckCircle, AlertCircle } from 'lucide-react';
+import { Trash, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import type { UploadStatus } from '../hooks/useGameUploads';
 
 // 1. Update the interface to accept progress data
@@ -44,7 +44,7 @@ const UploadItem: React.FC<UploadItemProps> = ({ title, coverUrl, progress, stat
                             </span>
                         ) : status === 'processing' ? (
                             <span className="text-amber-400 flex items-center">
-                                <AlertCircle size={14} className="mr-1"/> Processing...
+                                <Loader2 size={14} className="mr-1 animate-spin"/> Processing...
                             </span>
                         ) : (
                             <span className="text-zinc-400">

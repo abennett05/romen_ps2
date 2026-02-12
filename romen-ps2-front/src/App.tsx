@@ -117,12 +117,14 @@ function App() {
     <>
       <Header setSettingsModalOpen={setSettingsModalOpen} OnQuery={handleSearch} />
       <main>
-        <SettingsModal isOpen={settingsModalOpen} onClose={() => {setSettingsModalOpen(false); fetchLibrary();}} device={storageDevice || undefined} onUpdatePath={onUpdatePath} onRefresh={fetchDevice}/>
-        <AddGameModal isOpen={gameModalOpen} queue={queue} onUpload={uploadFiles} onClose={handleGameModalClose} onRemove={removeFile} />
-        <GameViewModal isOpen={!!selectedGame} onClose={() => setSelectedGame(null)} game={selectedGame} onDelete={handleDeleteGame} />
-        <Grid games={games} onGameClick={(game) => setSelectedGame(game)} filter={gameQuery}/>
-        <div className="fixed bottom-8 right-8 shadow-lg">
-          <IconButton icon={<Plus size={48} className="text-zinc-100" />} bgColor="bg-sky-600" onClick={handleAddGameClick} />
+        <div onDragOver={(e) => {e.preventDefault(); if (storageDevice !== null) setGameModalOpen(true)}} onDrop={(e) => {if (storageDevice === null) { e.preventDefault(); alert("Please select a storage device first."); }}}>
+          <SettingsModal isOpen={settingsModalOpen} onClose={() => {setSettingsModalOpen(false); fetchLibrary();}} device={storageDevice || undefined} onUpdatePath={onUpdatePath} onRefresh={fetchDevice}/>
+          <AddGameModal isOpen={gameModalOpen} queue={queue} onUpload={uploadFiles} onClose={handleGameModalClose} onRemove={removeFile} />
+          <GameViewModal isOpen={!!selectedGame} onClose={() => setSelectedGame(null)} game={selectedGame} onDelete={handleDeleteGame} />
+          <Grid games={games} onGameClick={(game) => setSelectedGame(game)} filter={gameQuery}/>
+          <div className="fixed bottom-8 right-8 shadow-lg">
+            <IconButton icon={<Plus size={48} className="text-zinc-100" />} bgColor="bg-sky-600" onClick={handleAddGameClick} />
+          </div>
         </div>
       </main>
     </>

@@ -13,7 +13,7 @@ import system
 from system import *
 
 #  - - - CONFIGURABLE - - -
-WEB_APP_PATH = './dist/index.html' # Routes to the index.html that houses our React app.
+WEB_APP_PATH = '../romen-ps2-front/dist/index.html' # Routes to the index.html that houses our React app.
 HOST = "0.0.0.0"
 PORT = 8000
 #  - - - CONFIGURABLE - - -
@@ -22,18 +22,14 @@ PORT = 8000
 app = FastAPI()
 
 # Development stuff leave commented out
-"""origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173"
-]
 
 # Middleware setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
-)"""
+)
 
 assets_path = os.path.join(os.path.dirname(WEB_APP_PATH), "assets")
 img_path = os.path.join(os.path.dirname(WEB_APP_PATH), "img")
@@ -61,8 +57,16 @@ def upload_game(background_tasks: BackgroundTasks, file: UploadFile = File(...))
 
     # 1. Save file to uploads dir   
     temp_path = os.path.join(system.CONFIG.UPLOADS_PATH, file.filename)
-    with open(temp_path, 'wb') as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    try:
+        with open(temp_path, 'wb') as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        print(f"[API] Transfer interrupted or failed: {e}")
+
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+            print(f"[API] Clean up partial file: {temp_path}")
+        return {"status": "error", "message": "Upload cancelled."}
 
     job_id = str(uuid.uuid4())
     JOB_RESULT[job_id] = {"status": "processing"}

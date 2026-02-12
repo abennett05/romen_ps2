@@ -33,12 +33,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, device, 
     // 4. The "Commit" function - fires when user is done
     const handleCommit = async () => {
         // Only fire if the path actually changed and isn't empty
-        if (device && localPath !== device.path && localPath.trim() !== "") {
+        if (localPath !== device?.path) {
             console.log("Committing new path:", localPath);
             if (onUpdatePath) {
                 const success = await onUpdatePath(localPath);
                 if (!success) {
-                    setLocalPath(device.path);
+                    setLocalPath(device?.path || "");
                 }
             }
         } else {

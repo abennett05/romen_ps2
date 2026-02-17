@@ -202,7 +202,7 @@ def download_disc(serial):
         save_path = os.path.join(art_dir, filename)
 
         print(f"[Disc] Downloading for {serial}...")
-        response = requests.get(f"{CONFIG.DISCS_URL}/{serial}.png", stream=True)
+        response = requests.get(f"{CONFIG.DISCS_URL}/{serial}_ICO.png", stream=True)
         response.raise_for_status()
         
         with open(save_path, 'wb') as f:

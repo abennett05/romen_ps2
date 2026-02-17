@@ -3,6 +3,7 @@ class Config:
     UPLOADS_PATH = ""
     FILE_STRUCTURE = ""
     COVERS_URL = ""
+    DISCS_URL = ""
 
     def __init__(self, json_data : list) -> None:
         self.update_entries(json_data)
@@ -12,3 +13,4 @@ class Config:
         self.UPLOADS_PATH = json_data["paths"]["uploads"]
         self.FILE_STRUCTURE = json_data["structure"]
         self.COVERS_URL = json_data["paths"]["covers_url"]
+        self.DISCS_URL = json_data["paths"]["discs_url"]

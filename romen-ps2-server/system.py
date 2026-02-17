@@ -21,6 +21,9 @@ with open(SETTINGS_PATH) as f:
 
 # Directory Methods
 def VerifyDir(path) -> tuple[bool, str]:
+    if not path:
+        return (False, "path is empty.")
+    
     realPath = os.path.realpath(path)
     # Check if the path exists
     if (not os.path.isdir(realPath)):
@@ -138,6 +141,9 @@ def ProcessUpload(temp_path: str):
         # 10. Trigger Cover Download
         download_cover(serial)
 
+        # 11. Trigger Disc Download
+        download_disc(serial)
+        
         return {
             "status": "completed", 
             "message": f"{clean_title} Added To Library", 
@@ -183,6 +189,29 @@ def download_cover(serial):
         return save_path
     except Exception as e:
         print(f"[Cover] Failed to download cover: {e}")
+        return None
+
+def download_disc(serial):
+    try:
+        filename = f"{serial}_ICO.png"
+        
+        # Ensure ART folder exists
+        art_dir = os.path.join(CONFIG.LIB_PATH, 'ART')
+        os.makedirs(art_dir, exist_ok=True)
+        
+        save_path = os.path.join(art_dir, filename)
+
+        print(f"[Disc] Downloading for {serial}...")
+        response = requests.get(f"{CONFIG.DISCS_URL}/{serial}.png", stream=True)
+        response.raise_for_status()
+        
+        with open(save_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        print(f"[Disc] Saved to {save_path}")
+        return save_path
+    except Exception as e:
+        print(f"[Disc] Failed to download disc: {e}")
         return None
 
 def get_library():
@@ -233,6 +262,9 @@ def remove_from_library(serial):
         return False
 
 def get_storage_device(path):
+    if not path:
+        return None
+    
     realPath = os.path.realpath(path)
     if not os.path.exists(realPath):
         return None

@@ -2,7 +2,8 @@
     "paths": {
         "storage": "/Volumes/SSKDrive 1",
         "uploads": "./uploads",
-        "covers_url": "https://raw.githubusercontent.com/xlenore/ps2-covers/main/covers/default"
+        "covers_url": "https://raw.githubusercontent.com/xlenore/ps2-covers/main/covers/default",
+        "discs_url": "https://raw.githubusercontent.com/abennett05/ps2_disc_icons/refs/heads/main/icons/"
     },
     "structure": [
         "APPS",

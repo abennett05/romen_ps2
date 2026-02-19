@@ -33,7 +33,7 @@ export const useGameUploads = () => {
             updateItem(file.name, { status: 'uploading', progress: 0 });
 
             // 2. Pass the signal to the upload request
-            const { data } = await axios.post("http://localhost:8000/upload", formData, {
+            const { data } = await axios.post("/upload", formData, {
                 signal: controller.signal, // <--- This connects the abort button
                 onUploadProgress: (e) => {
                     const total = e.total || file.size;
@@ -57,7 +57,7 @@ export const useGameUploads = () => {
                 if (controller.signal.aborted) throw new Error("Cancelled by user");
 
                 // 3. Pass signal here too, so we can cancel polling requests!
-                const job = await axios.get(`http://localhost:8000/job/${data.job_id}`, {
+                const job = await axios.get(`/job/${data.job_id}`, {
                     signal: controller.signal
                 });
 

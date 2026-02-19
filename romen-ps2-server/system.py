@@ -1,4 +1,5 @@
 import os
+import io
 import requests
 from colorama import Fore, Style
 import json
@@ -11,6 +12,7 @@ import subprocess
 import sys
 import re
 import ctypes # <--- Added for Windows Drive Label support
+from PIL import Image
 
 # Load settings.json as an obj
 CONFIG = None
@@ -181,10 +183,14 @@ def download_cover(serial):
         print(f"[Cover] Downloading for {serial}...")
         response = requests.get(f"{CONFIG.COVERS_URL}/{clean_serial}.jpg", stream=True)
         response.raise_for_status()
-        
-        with open(save_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
+
+        image_data = io.BytesIO(response.content)
+        with Image.open(image_data) as img:
+            resized_img = img.resize((140, 200), Image.Resampling.LANCZOS)
+            if resized_img.mode != 'RGB':
+                resized_img = resized_img.convert('RGB')
+            resized_img.save(save_path, format='JPEG')
+
         print(f"[Cover] Saved to {save_path}")
         return save_path
     except Exception as e:

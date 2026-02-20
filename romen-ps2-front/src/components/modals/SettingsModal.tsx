@@ -1,8 +1,9 @@
 import Modal from '../Modal';
 import React, { useState, useEffect } from 'react';
 import IconButton from '../IconButton';
-import { Trash, HardDrive, FolderSearch } from 'lucide-react';
+import { Trash, HardDrive, FolderSearch, Wrench } from 'lucide-react';
 import type { StorageDevice } from '../../App';
+import axios from 'axios';
 
 // 1. Add the update callback to the interface
 interface SettingsModalProps {
@@ -66,9 +67,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, device, 
     }
 
     function OnDeleteClick() {
-        if (confirm("Are you sure you want to clear the library?\nThis Action CANNOT be Undone.")) {
-            // Add actual delete logic here if passed via props
-        }
+        if (!confirm("Are you sure you want to clear the library?\nThis Action CANNOT be Undone.")) return;
+        // Add delete logic
+    }
+
+    async function OnRebuildClick() {
+        if (!confirm("Are you sure you want to rebuild the library?\nThis action may take some time depending on the size of your library.")) return;
+        const response = await axios.post('/rebuild-library', null);
+        alert(response.data.message);
     }
 
     return (
@@ -120,10 +126,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, device, 
                         placeholder="/path/to/library"
                     />
                 </div>
+                {/* ACTIONS */}
+                <div className={`${deviceConnected ? 'flex' : 'hidden'}`}>
+                    <div className="flex flex-row items-center space-x-4 mt-4">
+                        <IconButton icon={<Wrench size={32} className="text-white" />} bgColor="bg-amber-600  hover:bg-amber-500" onClick={OnRebuildClick} />
+                        <p className="font-semibold text-xl text-zinc-100">Rebuild Library</p>
+                    </div>
 
-                <div className="flex flex-row items-center space-x-4 mt-4">
-                    <IconButton icon={<Trash size={32} className="text-white" />} bgColor="bg-red-600 hover:bg-red-500" onClick={OnDeleteClick} />
-                    <p className="font-semibold text-xl text-zinc-100">Clear Library</p>
+                    <div className="flex flex-row items-center space-x-4 mt-4">
+                        <IconButton icon={<Trash size={32} className="text-white" />} bgColor="bg-red-600 hover:bg-red-500" onClick={OnDeleteClick} />
+                        <p className="font-semibold text-xl text-zinc-100">Clear Library</p>
+                    </div>
                 </div>
             </div>
         </Modal>

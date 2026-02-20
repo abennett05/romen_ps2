@@ -85,7 +85,6 @@ def get_job_status(job_id: str):
 @app.get("/library")
 def get_library():
     response = system.get_library()
-    print(response)
     return response
 
 @app.delete("/library/{serial}")
@@ -97,6 +96,11 @@ def delete_game(serial: str):
     else:
         # Return 500 or 404 depending on logic, keeping it simple here
         return {"status": "error", "message": "Failed to remove game"}
+
+@app.post("/rebuild-library")
+def rebuild_library():
+    response = system.rebuild_library()
+    return response
 
 @app.get("/device")
 def get_device():

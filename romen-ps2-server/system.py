@@ -58,14 +58,13 @@ def CreateStructure(path):
 def CheckDatabases():
     global db
     
-    libExists = Fore.GREEN + 'Exists' + Style.RESET_ALL
-    mapExists = Fore.GREEN + 'Exists' + Style.RESET_ALL
+    libExists = Fore.GREEN + 'Established' + Style.RESET_ALL
+    mapExists = Fore.GREEN + 'Established' + Style.RESET_ALL
     
     # 1. Check Library DB (Dynamic Path)
     current_db_path = db.get_db_path()
     if not current_db_path or not os.path.exists(current_db_path):
-        db.initialize_library()
-        libExists = Fore.YELLOW + 'Initialized' + Style.RESET_ALL
+        libExists = Fore.YELLOW + 'Not connected' + Style.RESET_ALL
         
     # 2. Check Map DB (Static Path)
     if not os.path.exists(db.MAP_DB_LOCAL_PATH):
@@ -145,6 +144,9 @@ def ProcessUpload(temp_path: str):
 
         # 11. Trigger Disc Download
         download_disc(serial)
+
+        # 12. Trigger CFG Download
+        download_cfg(serial)
         
         return {
             "status": "completed", 
@@ -180,7 +182,7 @@ def download_cover(serial):
         
         save_path = os.path.join(art_dir, filename)
 
-        print(f"[Cover] Downloading for {serial}...")
+        print(f"[System] Downloading cover art for {serial}...")
         response = requests.get(f"{CONFIG.COVERS_URL}/{clean_serial}.jpg", stream=True)
         response.raise_for_status()
 
@@ -191,10 +193,10 @@ def download_cover(serial):
                 resized_img = resized_img.convert('RGB')
             resized_img.save(save_path, format='JPEG')
 
-        print(f"[Cover] Saved to {save_path}")
+        print(f"[System] Saved cover art to {save_path}")
         return save_path
     except Exception as e:
-        print(f"[Cover] Failed to download cover: {e}")
+        print(f"[System] Failed to download cover: {e}")
         return None
 
 def download_disc(serial):
@@ -207,17 +209,40 @@ def download_disc(serial):
         
         save_path = os.path.join(art_dir, filename)
 
-        print(f"[Disc] Downloading for {serial}...")
+        print(f"[System] Downloading disc art for {serial}...")
         response = requests.get(f"{CONFIG.DISCS_URL}/{serial}_ICO.png", stream=True)
         response.raise_for_status()
         
         with open(save_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
-        print(f"[Disc] Saved to {save_path}")
+        print(f"[System] Saved disc art to {save_path}")
         return save_path
     except Exception as e:
-        print(f"[Disc] Failed to download disc: {e}")
+        print(f"[System] Failed to download disc: {e}")
+        return None
+
+def download_cfg(serial):
+    try:
+        filename = f"{serial}.cfg"
+        
+        # Ensure CFG folder exists
+        cfg_dir = os.path.join(CONFIG.LIB_PATH, 'CFG')
+        os.makedirs(cfg_dir, exist_ok=True)
+        
+        save_path = os.path.join(cfg_dir, filename)
+
+        print(f"[System] Downloading CFG for {serial}...")
+        response = requests.get(f"{CONFIG.CFG_URL}/{serial}.cfg", stream=True)
+        response.raise_for_status()
+        
+        with open(save_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        print(f"[System] Saved CFG to {save_path}")
+        return save_path
+    except Exception as e:
+        print(f"[System] Failed to download CFG: {e}")
         return None
 
 def get_library():
@@ -249,8 +274,8 @@ def remove_from_library(serial):
             print(f"[System] ISO file not found at {iso_path}, skipping file deletion.")
 
         # --- DELETE COVER ART ---
-        clean_serial = db.clean_serial(serial)
-        cover_path = os.path.join(CONFIG.LIB_PATH, "ART", f"{clean_serial}_COV.jpg")
+        cover_path = os.path.join(CONFIG.LIB_PATH, "ART", f"{serial}_COV.jpg")
+        disc_path = os.path.join(CONFIG.LIB_PATH, "ART", f"{serial}_ICO.png")
         
         if os.path.exists(cover_path):
             try:
@@ -258,6 +283,13 @@ def remove_from_library(serial):
                 print(f"[System] Deleted Cover: {cover_path}")
             except OSError as e:
                 print(f"[System] Error deleting cover art: {e}")
+        
+        if os.path.exists(disc_path):
+            try:
+                os.remove(disc_path)
+                print(f"[System] Deleted Disc: {disc_path}")
+            except OSError as e:
+                print(f"[System] Error deleting disc art: {e}")
 
         # --- REMOVE FROM DB ---
         db.remove_game_from_library(serial)
@@ -390,3 +422,67 @@ def set_library_path(new_path):
     except Exception as e:
         print(f"[Settings] Failed to save: {e}")
         return {"status": "error", "message": str(e)}
+
+def rebuild_library():
+    global db
+    global CONFIG
+
+    db_path = db.get_db_path()
+    if (not os.path.exists(db_path)):
+        print("[System] No DB exists, cannot rebuild")
+        return {"status": "error", "message": f"Library database doesn't exist at path: {db_path}"}
+    
+    try:
+        os.remove(db_path)
+        db.initialize_library()
+
+        SERIAL_PATTERN = r'[a-zA-Z]{4}_\d{3}\.\d{2}'
+        # Start with games in DVD folder
+        DVD_PATH = os.path.join(CONFIG.LIB_PATH, 'DVD')
+        DVD_FILES = os.listdir(DVD_PATH)
+        for file in DVD_FILES:
+            match = re.search(SERIAL_PATTERN, file)
+            if not match:
+                continue
+
+            serial = match.group()
+            title = db.query_title_by_serial(serial)
+
+            if not title:
+                continue
+
+            # Found a valid ISO, add to library db & fetch files
+            game_path = os.path.join(DVD_PATH, file)
+            game_size = os.path.getsize(game_path)
+            cover_url = f"{CONFIG.COVERS_URL}/{db.clean_serial(serial)}.jpg"
+            db.add_game_to_library(serial, title, game_path, game_size, cover_url)
+            download_cover(serial)
+            download_disc(serial)
+            download_cfg(serial)
+
+        # Follow up with viewing 
+        CD_PATH = os.path.join(CONFIG.LIB_PATH, 'CD')
+        CD_FILES = os.listdir(CD_PATH)
+        for file in CD_FILES:
+            match = re.search(SERIAL_PATTERN, file)
+            if not match:
+                continue
+
+            serial = match.group()
+            title = db.query_title_by_serial(serial)
+
+            if not title:
+                continue
+
+            # Found a valid ISO, add to library db & fetch files
+            game_path = os.path.join(CD_PATH, file)
+            game_size = os.path.getsize(game_path)
+            cover_url = f"{CONFIG.COVERS_URL}/{db.clean_serial(serial)}.jpg"
+            db.add_game_to_library(serial, title, game_path, game_size, cover_url)
+            download_cover(serial)
+            download_disc(serial)
+            download_cfg(serial)
+        
+        return {"status": "success", "message": "Successfully rebuilt library database."}
+    except Exception as e:
+        return {"status": "error", "message": f"Error rebuilding library database: {e}"}

@@ -23,7 +23,7 @@ const SearchBar: React.FC<{OnQuery: (query: string) => void}> = ({ OnQuery }) =>
                 onBlur={() => OnQuery(query)}
                 onKeyDown={handleKeyDown}
                 placeholder="Search library..."
-                className='bg-transparent border-none outline-none text-white text-lg w-full placeholder:text-zinc-500'
+                className='bg-transparent border-none outline-none text-white text-lg w-full placeholder:text-zinc-500 truncate'
             />
         </div>
     );

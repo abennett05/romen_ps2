@@ -4,7 +4,7 @@
 
 **A robust web server and library manager for your PlayStation 2 ISO collection.**
 
-> **Status:** 🚧 Public Beta (v0.1.1)
+> **Status:** 🚧 Public Beta (v0.3.0)
 
 **Romen** is a Python-based web application designed to streamline the process of managing PS2 game backups. It automates the tedious tasks required for Open PS2 Loader (OPL) compatibility and **allows any device on your local network to upload games**.
 
@@ -16,6 +16,7 @@
 * **Database Tracking:** Maintains a local database of your owned games.
 * **Cross-Platform:** Runs seamlessly on Windows, macOS, and Linux.
 * **Game Art:** Fetches appropiate artwork for your games to view in the **Romen** app & OPL.
+* **Game CFG:** Collects information about the game such as Developer, Release Date, Genre, & Description to display in OPL.
 
 ---
 
@@ -32,7 +33,7 @@
 If you just want to use the tool to manage your games, you do **not** need to clone this repository.
 
 1.  **Go to the [Releases Page](../../releases)**.
-2.  Download the latest `.zip` file (e.g., `romen-ps2-v0.1.1.zip`).
+2.  Download the latest `.zip` file (e.g., `romen-ps2-v0.3.0.zip`).
 3.  Unzip the folder.
 4.  **Run the script:**
     * **Windows:** Double-click `run.bat`.

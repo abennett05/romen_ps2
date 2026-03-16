@@ -66,9 +66,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, device, 
         return 'text-red-400'; // Low space
     }
 
-    function OnDeleteClick() {
+    async function OnDeleteClick() {
         if (!confirm("Are you sure you want to clear the library?\nThis Action CANNOT be Undone.")) return;
-        // Add delete logic
+        const response = await axios.delete(`/library/clear`);
+
+        if (response.data.success) {
+            alert("Library has been cleared successfully.")
+        } else {
+            alert("Unable to clear library, if issue persists rebuild library.")
+        }
     }
 
     async function OnRebuildClick() {

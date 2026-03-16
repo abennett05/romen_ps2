@@ -97,6 +97,17 @@ def delete_game(serial: str):
         # Return 500 or 404 depending on logic, keeping it simple here
         return {"status": "error", "message": "Failed to remove game"}
 
+@app.delete("/library/clear")
+def clear_library():
+    success = system.remove_all_from_library()
+
+    if success:
+        return {"status": "success", "message": "Library cleared"}
+    else:
+        # Return 500 or 404 depending on logic, keeping it simple here
+        return {"status": "error", "message": "Failed to clear library"}
+
+
 @app.post("/rebuild-library")
 def rebuild_library():
     response = system.rebuild_library()

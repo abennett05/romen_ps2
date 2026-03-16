@@ -276,6 +276,7 @@ def remove_from_library(serial):
         # --- DELETE COVER ART ---
         cover_path = os.path.join(CONFIG.LIB_PATH, "ART", f"{serial}_COV.jpg")
         disc_path = os.path.join(CONFIG.LIB_PATH, "ART", f"{serial}_ICO.png")
+        cfg_path = os.path.join(CONFIG.LIB_PATH, "CFG", f"{serial}.cfg")
         
         if os.path.exists(cover_path):
             try:
@@ -291,6 +292,13 @@ def remove_from_library(serial):
             except OSError as e:
                 print(f"[System] Error deleting disc art: {e}")
 
+        if os.path.exists(cfg_path):
+            try:
+                os.remove(cfg_path)
+                print(f"[System] Deleted CFG: {cfg_path}")
+            except OSError as e:
+                print(f"[System] Error deleting CFG: {e}")
+
         # --- REMOVE FROM DB ---
         db.remove_game_from_library(serial)
         return True
@@ -298,6 +306,17 @@ def remove_from_library(serial):
     except Exception as e:
         print(f"[System] Critical error during removal process: {e}")
         return False
+
+def remove_all_from_library():
+    global db
+    games = db.get_all_games()
+    for game in games:
+        serial = game["serial"]
+        try:
+            remove_from_library(serial)
+        except Exception as e:
+            return False
+    return True
 
 def get_storage_device(path):
     if not path:

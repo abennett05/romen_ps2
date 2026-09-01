@@ -1,6 +1,6 @@
 <img src="https://github.com/abennett05/romen_ps2/blob/main/romen-ps2-front/public/img/romen_logo.png?raw=true" alt="Romen Logo" width="192">
 
-# Romen-PS2 🎮
+# ISObe-PS2 🎮
 
 **A robust web server and library manager for your PlayStation 2 ISO collection.**
 
@@ -8,7 +8,7 @@
 
 > **Status:** 🚧 Public Beta (v0.3.0)
 
-**Romen** is a Python-based web application designed to streamline the process of managing PS2 game backups. It automates the tedious tasks required for Open PS2 Loader (OPL) compatibility and **allows any device on your local network to upload games**.
+**ISObe** is a Python-based web application designed to streamline the process of managing PS2 game backups. It automates the tedious tasks required for Open PS2 Loader (OPL) compatibility and **allows any device on your local network to upload games**.
 
 ## ✨ Features
 

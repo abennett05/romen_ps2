@@ -11,8 +11,8 @@ const Header : React.FC<{ setSettingsModalOpen: (open: boolean) => void; OnQuery
                 <img src="/img/romen_logo.png" alt="Logo" 
                 className="w-16 h-auto object-contain" />
                 <div className="hidden sm:block">
-                    <h1 className="text-2xl font-bold leading-tight">Romen</h1>
-                    <p className="text-xs text-zinc-400">PlayStation 2 ROM Manager</p>
+                    <h1 className="text-2xl font-bold leading-tight">ISObe</h1>
+                    <p className="text-xs text-zinc-400">PlayStation 2 ISO Library Manager</p>
                 </div>
             </div>
 

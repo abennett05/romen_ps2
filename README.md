@@ -1,10 +1,10 @@
-<img src="https://github.com/abennett05/romen_ps2/blob/main/romen-ps2-front/public/img/romen_logo.png?raw=true" alt="Romen Logo" width="192">
+<img src="https://github.com/abennett05/isobe/blob/main/romen-ps2-front/public/img/romen_logo.png?raw=true" alt="ISObe Logo" width="192">
 
 # ISObe-PS2 🎮
 
 **A robust web server and library manager for your PlayStation 2 ISO collection.**
 
-<img src="https://i.imgur.com/kkH9c6K.jpeg" alt="Romen Preview Image" width="1280" height="720">
+<img src="https://i.imgur.com/kkH9c6K.jpeg" alt="ISObe Preview Image" width="1280" height="720">
 
 > **Status:** 🚧 Public Beta (v0.3.0)
 
@@ -17,8 +17,9 @@
 * **Web Interface:** Manage your library via a modern React-based frontend.
 * **Database Tracking:** Maintains a local database of your owned games.
 * **Cross-Platform:** Runs seamlessly on Windows, macOS, and Linux.
-* **Game Art:** Fetches appropiate artwork for your games to view in the **Romen** app & OPL.
+* **Game Art:** Fetches appropiate artwork for your games to view in the **ISObe** app & OPL.
 * **Game CFG:** Collects information about the game such as Developer, Release Date, Genre, & Description to display in OPL.
+* **Update Checks:** Tells you from inside the app when a newer release is available, with a direct download link.
 
 ---
 
@@ -26,7 +27,7 @@
 
 * 💿 Additional Storage Device formatted in **exFAT**
    * Spare USB Drive, SATA HDD, NVME M.2 SSD, whatever you have likely works!
-* 🐍 [Python (3.1x)](https://www.python.org/) installed on the system running Romen.
+* 🐍 [Python (3.1x)](https://www.python.org/) installed on the system running ISObe.
 
 ---
 
@@ -35,12 +36,37 @@
 If you just want to use the tool to manage your games, you do **not** need to clone this repository.
 
 1.  **Go to the [Releases Page](../../releases)**.
-2.  Download the latest `.zip` file (e.g., `romen-ps2-v0.3.0.zip`).
+2.  Download the latest `.zip` file (e.g., `isobe-ps2-v0.3.0.zip`).
 3.  Unzip the folder.
 4.  **Run the script:**
     * **Windows:** Double-click `run.bat`.
     * **Mac/Linux:** Open terminal in the folder and run `./run.sh`.
 5.  **View in your browser & start uploading games!**.
+
+---
+
+## 🚀 Releasing (For Maintainers)
+
+Releases are built and published automatically by
+[`.github/workflows/release.yml`](.github/workflows/release.yml). Pushing a
+version tag is the whole process:
+
+```bash
+git tag v0.4.0
+git push origin v0.4.0
+```
+
+The workflow builds the React frontend, packages it with the Python server and
+launch scripts, stamps the version into `version.py`, and attaches
+`isobe-ps2-v0.4.0.zip` to a new GitHub Release. Tags containing `-beta`,
+`-alpha` or `-rc` are published as pre-releases.
+
+To test the packaging without publishing, run the workflow manually from the
+**Actions** tab — it produces the same zip as a downloadable build artifact.
+
+> Tags must match the version scheme in `romen-ps2-server/version.py` (`v0.4.0`
+> ↔ `0.4.0`), since the in-app update check compares the running version against
+> the latest release tag.
 
 ---
 

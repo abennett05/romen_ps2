@@ -1,0 +1,145 @@
+name: Release
+
+# Publishes a downloadable ISObe build to GitHub Releases.
+#
+#   git tag v0.4.0 && git push origin v0.4.0
+#
+# ...builds the React frontend, packages it with the Python server, and attaches
+# the zip to a new release. `workflow_dispatch` runs the same packaging without
+# publishing, so the zip can be inspected as a workflow artifact first.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g. v0.4.0). Builds only, does not publish.'
+        required: true
+        default: 'v0.0.0-test'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            TAG="${{ inputs.version }}"
+          fi
+          # version.py stores the bare number; tags and release names keep the 'v'.
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "number=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "package=isobe-ps2-${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Building ${TAG}"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: romen-ps2-front/package-lock.json
+
+      - name: Build frontend
+        working-directory: romen-ps2-front
+        run: |
+          npm ci
+          npm run build
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify backend imports
+        working-directory: romen-ps2-server
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -c "import server, updates, version; print('server imports OK, version', version.__version__)"
+
+      - name: Assemble package
+        id: package
+        env:
+          PKG: ${{ steps.version.outputs.package }}
+          NUMBER: ${{ steps.version.outputs.number }}
+        run: |
+          set -euo pipefail
+          mkdir -p "build/${PKG}"
+
+          # Backend: source, settings, dependency list and the bundled title map.
+          cp romen-ps2-server/*.py "build/${PKG}/"
+          cp romen-ps2-server/settings.json "build/${PKG}/"
+          cp romen-ps2-server/requirements.txt "build/${PKG}/"
+          mkdir -p "build/${PKG}/data"
+          cp romen-ps2-server/data/ps2_titlemap.db "build/${PKG}/data/"
+
+          # Uploads staging dir has to exist before the first upload lands.
+          mkdir -p "build/${PKG}/uploads"
+          touch "build/${PKG}/uploads/.gitkeep"
+
+          # Frontend build. server.py finds ./dist automatically in this layout.
+          cp -r romen-ps2-front/dist "build/${PKG}/dist"
+
+          # Launchers.
+          cp packaging/run.sh packaging/run.bat "build/${PKG}/"
+          chmod +x "build/${PKG}/run.sh"
+
+          # Stamp the real version so the in-app update check compares correctly.
+          python - <<'PY'
+          import os, re
+          pkg = os.environ["PKG"]
+          number = os.environ["NUMBER"]
+          path = f"build/{pkg}/version.py"
+          src = open(path).read()
+          src = re.sub(r'^__version__ = ".*"$', f'__version__ = "{number}"', src, flags=re.M)
+          open(path, "w").write(src)
+          print(f"Stamped version {number}")
+          PY
+
+          # Never ship local state.
+          rm -f "build/${PKG}/settings.local.json"
+          find "build/${PKG}" -name '__pycache__' -type d -prune -exec rm -rf {} +
+          find "build/${PKG}" -name '.DS_Store' -delete
+
+          cd build
+          zip -r "${PKG}.zip" "${PKG}" > /dev/null
+          echo "zip=build/${PKG}.zip" >> "$GITHUB_OUTPUT"
+          echo "Packaged:"
+          unzip -l "${PKG}.zip" | tail -n 5
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.package }}
+          path: ${{ steps.package.outputs.zip }}
+
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          ZIP: ${{ steps.package.outputs.zip }}
+        run: |
+          set -euo pipefail
+          PRERELEASE=""
+          case "$TAG" in
+            *-beta*|*-alpha*|*-rc*) PRERELEASE="--prerelease" ;;
+          esac
+
+          gh release create "$TAG" "$ZIP" \
+            --title "$TAG" \
+            --generate-notes \
+            --verify-tag \
+            $PRERELEASE

@@ -17,5 +17,8 @@
         "LNG",
         "THM",
         "VMC"
-    ]
+    ],
+    "updates": {
+        "github_repo": "abennett05/isobe"
+    }
 }

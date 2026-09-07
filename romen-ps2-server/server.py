@@ -11,12 +11,25 @@ import uuid
 # local modules
 import system
 from system import *
+import updates
+import version
 
 #  - - - CONFIGURABLE - - -
-WEB_APP_PATH = '../romen-ps2-front/dist/index.html' # Routes to the index.html that houses our React app.
+# Routes to the index.html that houses our React app. The packaged release ships
+# the build next to server.py; a repo checkout keeps it in the frontend folder.
+WEB_APP_CANDIDATES = [
+    './dist/index.html',
+    '../romen-ps2-front/dist/index.html',
+]
 HOST = "0.0.0.0"
 PORT = 8000
 #  - - - CONFIGURABLE - - -
+
+_here = os.path.dirname(os.path.abspath(__file__))
+WEB_APP_PATH = next(
+    (os.path.join(_here, c) for c in WEB_APP_CANDIDATES if os.path.exists(os.path.join(_here, c))),
+    os.path.join(_here, WEB_APP_CANDIDATES[0]),
+)
 
 # - - - APP SETUP - - -
 app = FastAPI()
@@ -87,16 +100,6 @@ def get_library():
     response = system.get_library()
     return response
 
-@app.delete("/library/{serial}")
-def delete_game(serial: str):
-    success = system.remove_from_library(serial)
-    
-    if success:
-        return {"status": "success", "message": "Game removed"}
-    else:
-        # Return 500 or 404 depending on logic, keeping it simple here
-        return {"status": "error", "message": "Failed to remove game"}
-
 @app.delete("/library/clear")
 def clear_library():
     success = system.remove_all_from_library()
@@ -107,6 +110,16 @@ def clear_library():
         # Return 500 or 404 depending on logic, keeping it simple here
         return {"status": "error", "message": "Failed to clear library"}
 
+
+@app.delete("/library/{serial}")
+def delete_game(serial: str):
+    success = system.remove_from_library(serial)
+    
+    if success:
+        return {"status": "success", "message": "Game removed"}
+    else:
+        # Return 500 or 404 depending on logic, keeping it simple here
+        return {"status": "error", "message": "Failed to remove game"}
 
 @app.post("/rebuild-library")
 def rebuild_library():
@@ -126,6 +139,28 @@ def set_device(path: str):
         return system.set_library_path(path)
     return {"status" : "error" , "message": "Failed to set storage device"}
 
+# - - - GITHUB RELEASES - - -
+
+@app.get("/version")
+def get_version():
+    """The version of ISObe that is currently running."""
+    return {"version": version.__version__, "repo": updates.get_repo()}
+
+@app.get("/updates")
+def get_updates(force: bool = False):
+    """Compare the running version against the newest release on GitHub."""
+    return updates.check_for_updates(force=force)
+
+@app.get("/releases")
+def get_releases(limit: int = 10, force: bool = False):
+    """Recent releases from GitHub, newest first."""
+    try:
+        return {"status": "success", "releases": updates.get_releases(limit=limit, force=force)}
+    except Exception as e:
+        return {"status": "error", "message": str(e), "releases": []}
+
+# - - - GITHUB RELEASES - - -
+
 # Serve actual web app
 @app.get("/{full_path:path}")
 def serve_app():
@@ -137,6 +172,6 @@ def serve_app():
 if __name__ == "__main__":
     # system checks
     system.CheckDatabases()
-    print(f'[SERVER] Romen running on {HOST}:{PORT}')
+    print(f'[SERVER] ISObe v{version.__version__} running on {HOST}:{PORT}')
     uvicorn.run(app, host=HOST, port=PORT)
     pass

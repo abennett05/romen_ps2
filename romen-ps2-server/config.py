@@ -5,6 +5,7 @@ class Config:
     COVERS_URL = ""
     DISCS_URL = ""
     CFG_URL = ""
+    GITHUB_REPO = ""
 
     def __init__(self, json_data : list) -> None:
         self.update_entries(json_data)
@@ -16,3 +17,6 @@ class Config:
         self.COVERS_URL = json_data["paths"]["covers_url"]
         self.DISCS_URL = json_data["paths"]["discs_url"]
         self.CFG_URL = json_data["paths"]["cfg_url"]
+        # Optional: settings.json written by an older version won't have this,
+        # so fall back to the repo baked into version.py.
+        self.GITHUB_REPO = json_data.get("updates", {}).get("github_repo", "")

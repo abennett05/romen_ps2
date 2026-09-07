@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import IconButton from '../IconButton';
 import { Trash, HardDrive, FolderSearch, Wrench } from 'lucide-react';
 import type { StorageDevice } from '../../App';
+import UpdateNotice from '../UpdateNotice';
 import axios from 'axios';
 
 // 1. Add the update callback to the interface
@@ -144,6 +145,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, device, 
                         <p className="font-semibold text-xl text-zinc-100">Clear Library</p>
                     </div>
                 </div>
+
+                <div className="border-t border-zinc-700 my-2" />
+
+                {/* UPDATES */}
+                <UpdateNotice active={isOpen} />
             </div>
         </Modal>
     );

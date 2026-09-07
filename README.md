@@ -36,12 +36,13 @@
 If you just want to use the tool to manage your games, you do **not** need to clone this repository.
 
 1.  **Go to the [Releases Page](../../releases)**.
-2.  Download the latest `.zip` file (e.g., `isobe-ps2-v0.3.0.zip`).
+2.  Download the latest `.zip` file (e.g., `isobe-ps2-v0.3.1.zip`).
 3.  Unzip the folder.
 4.  **Run the script:**
     * **Windows:** Double-click `run.bat`.
     * **Mac/Linux:** Open terminal in the folder and run `./run.sh`.
 5.  **View in your browser & start uploading games!**.
+++ Once setup, ISObe will automatically search for updates!
 
 ---
 

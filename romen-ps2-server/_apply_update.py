@@ -192,13 +192,32 @@ def refresh_dependencies(python, install_dir, backup_dir):
 
 
 def relaunch(python, install_dir):
-    log("Starting ISObe...")
+    """
+    Start the new version detached from whatever launched the old one.
+
+    The restarted server outlives the terminal or tmux pane run.sh was started
+    in, so its output goes to isobe.log next to the app rather than to a
+    console nobody is watching any more. `tail -f isobe.log` picks it back up.
+    """
+    log_path = os.path.join(install_dir, 'isobe.log')
+    try:
+        output = open(log_path, 'ab')
+    except OSError as e:
+        log(f"Could not open {log_path} ({e}); falling back to this log.")
+        output = None
+
     kwargs = {"cwd": install_dir, "stdin": subprocess.DEVNULL}
+    if output is not None:
+        kwargs["stdout"] = output
+        kwargs["stderr"] = output
     if os.name == 'nt':
         kwargs["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
     else:
         kwargs["start_new_session"] = True
-    subprocess.Popen([python, 'server.py'], **kwargs)
+
+    child = subprocess.Popen([python, 'server.py'], **kwargs)
+    log(f"Started ISObe as pid {child.pid}; output goes to {log_path}")
+    return child.pid
 
 
 def write_result(path, **fields):
@@ -237,10 +256,6 @@ def main():
         if not refresh_dependencies(python, install_dir, backup_dir):
             raise RuntimeError("Could not install the new version's dependencies.")
 
-        write_result(result_path, status="success",
-                     from_version=plan.get("from_version"),
-                     to_version=plan.get("to_version"),
-                     message=f"Updated to {plan.get('to_version')}.")
         log(f"Updated {plan.get('from_version')} -> {plan.get('to_version')}.")
 
     except Exception as e:
@@ -275,7 +290,12 @@ def main():
             except OSError:
                 pass
 
-    relaunch(python, install_dir)
+    new_pid = relaunch(python, install_dir)
+    write_result(result_path, status="success",
+                 from_version=plan.get("from_version"),
+                 to_version=plan.get("to_version"),
+                 pid=new_pid,
+                 message=f"Updated to {plan.get('to_version')}.")
     return 0
 
 

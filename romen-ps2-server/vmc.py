@@ -20,10 +20,13 @@ The memory card filesystem layout written here follows the public domain
 
 import os
 import re
+import shutil
 import struct
+import tempfile
 import time
 from array import array
 
+import ps2_ecc
 import system
 
 # - - - FORMAT CONSTANTS - - -
@@ -587,3 +590,560 @@ def provision_for_game(serial, size_mb=DEFAULT_SIZE_MB):
             return result
 
     return assign_vmc(serial, name, slot=0)
+
+
+# - - - READING A CARD - - -
+#
+# Everything below this line opens cards 'rb' and never writes into one. A
+# save browser that can corrupt saves is worse than no save browser, so the
+# read path has no write path to get wrong.
+
+# Directory entries are one per 512 byte page, so two to a cluster.
+DIRENTS_PER_CLUSTER = CLUSTER_SIZE // 512
+
+# icon.sys, the file every save carries to describe itself on the PS2's own
+# memory card screen. Fixed 964 byte layout; the title is Shift-JIS.
+ICON_SYS_MAGIC = b"PS2D"
+ICON_SYS_TITLE_OFFSET = 0xC0
+ICON_SYS_TITLE_LENGTH = 68
+ICON_SYS_LINEBREAK_OFFSET = 0x06
+
+# Save folders are named after the game serial with a region letter glued on
+# the front, e.g. BASLUS-20552 for SLUS-20552.
+_SERIAL_IN_NAME = re.compile(r'([A-Z]{4})[-_]?(\d{5})')
+
+
+class CardReader:
+    """
+    Read-only view of a memory card's filesystem.
+
+    Opens the image, resolves the FAT through the indirect FAT, and walks the
+    directory tree. Raises ValueError if the card isn't one OPL would accept,
+    so callers never end up parsing garbage as a directory.
+    """
+
+    def __init__(self, path):
+        self.path = path
+        self.f = open(path, 'rb')
+        try:
+            self._read_superblock()
+        except Exception:
+            self.f.close()
+            raise
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+    def close(self):
+        self.f.close()
+
+    def _read_superblock(self):
+        raw = self.f.read(_SUPERBLOCK.size)
+        if len(raw) < _SUPERBLOCK.size:
+            raise ValueError("File is too small to be a memory card.")
+
+        (magic, _version, page_size, pages_per_cluster, _ppb, _unused,
+         clusters_per_card, alloc_offset, alloc_end, rootdir, _gb1, _gb2,
+         ifc, _bad, card_type, _flags) = _SUPERBLOCK.unpack(raw)
+
+        if not magic.startswith(MAGIC[:27]):
+            raise ValueError("Not a PS2 memory card image.")
+        if card_type != CARD_TYPE_PS2:
+            raise ValueError(f"Card type is {card_type}, expected 2.")
+
+        self.page_size = page_size
+        self.cluster_size = page_size * pages_per_cluster
+        self.entries_per_cluster = self.cluster_size // 4
+        self.clusters_per_card = clusters_per_card
+        self.alloc_offset = alloc_offset
+        self.alloc_end = alloc_end
+        self.rootdir = rootdir
+
+        self.ifc_list = array('I')
+        self.ifc_list.frombytes(ifc)
+
+        self._fat_cache = {}
+
+    # - - - cluster / FAT plumbing - - -
+
+    def _read_cluster(self, cluster):
+        """Read one physical cluster."""
+        if cluster < 0 or cluster >= self.clusters_per_card:
+            raise ValueError(f"Cluster {cluster} is outside the card.")
+        self.f.seek(cluster * self.cluster_size)
+        data = self.f.read(self.cluster_size)
+        if len(data) != self.cluster_size:
+            raise ValueError(f"Card ends before cluster {cluster}.")
+        return data
+
+    def _fat_entry(self, n):
+        """
+        The FAT entry for allocatable cluster `n`, resolved through the two
+        level indirect FAT.
+        """
+        per = self.entries_per_cluster
+        fat_index, offset = divmod(n, per)
+        ifc_index, indirect_offset = divmod(fat_index, per)
+
+        if ifc_index >= len(self.ifc_list):
+            raise ValueError(f"Cluster {n} is beyond the indirect FAT.")
+
+        indirect_cluster = self.ifc_list[ifc_index]
+        table = self._fat_cache.get(indirect_cluster)
+        if table is None:
+            table = array('I')
+            table.frombytes(self._read_cluster(indirect_cluster))
+            self._fat_cache[indirect_cluster] = table
+
+        fat_cluster = table[indirect_offset]
+        if fat_cluster == 0xFFFFFFFF:
+            raise ValueError(f"Cluster {n} has no FAT entry.")
+
+        entries = self._fat_cache.get(('fat', fat_cluster))
+        if entries is None:
+            entries = array('I')
+            entries.frombytes(self._read_cluster(fat_cluster))
+            self._fat_cache[('fat', fat_cluster)] = entries
+
+        return entries[offset]
+
+    def _chain(self, first):
+        """
+        Walk a cluster chain, yielding physical cluster numbers.
+
+        A corrupt card can describe a chain that loops; the visited set turns
+        that into a short read rather than a hung request.
+        """
+        seen = set()
+        cluster = first
+        while cluster != 0xFFFFFFFF and (cluster & 0x7FFFFFFF) != FAT_FREE:
+            n = cluster & 0x7FFFFFFF
+            if n in seen or n >= self.alloc_end:
+                break
+            seen.add(n)
+            yield self.alloc_offset + n
+            cluster = self._fat_entry(n)
+
+    def read_data(self, first_cluster, length):
+        """Read `length` bytes from the chain starting at an allocatable cluster."""
+        out = bytearray()
+        for cluster in self._chain(first_cluster):
+            out += self._read_cluster(cluster)
+            if len(out) >= length:
+                break
+        return bytes(out[:length])
+
+    # - - - directories - - -
+
+    def read_dir(self, first_cluster, count):
+        """
+        The live entries of a directory. `count` is the entry count stored in
+        the directory's own record, capped so a bad value can't spin.
+        """
+        count = max(0, min(int(count), 4096))
+        entries = []
+        needed = _div_round_up(count, DIRENTS_PER_CLUSTER)
+        for cluster in self._chain(first_cluster):
+            if needed <= 0:
+                break
+            needed -= 1
+            raw = self._read_cluster(cluster)
+            for i in range(DIRENTS_PER_CLUSTER):
+                if len(entries) >= count:
+                    break
+                chunk = raw[i * 512:(i + 1) * 512]
+                if len(chunk) < _DIRENT.size:
+                    break
+                entry = self._parse_dirent(chunk)
+                if entry:
+                    entries.append(entry)
+        return entries
+
+    def _parse_dirent(self, raw):
+        (mode, _unused, length, created, cluster, _parent, modified, _attr,
+         name) = _DIRENT.unpack(raw[:_DIRENT.size])
+
+        if not (mode & DF_EXISTS):
+            return None
+
+        clean_name = name.split(b"\x00")[0].decode('ascii', 'replace')
+        if not clean_name:
+            return None
+
+        return {
+            "name": clean_name,
+            "mode": mode,
+            "is_dir": bool(mode & DF_DIR),
+            "length": length,
+            "cluster": cluster,
+            "created": _decode_tod(created),
+            "modified": _decode_tod(modified),
+        }
+
+    def root_entries(self):
+        """
+        The root directory's entries.
+
+        How many there are is recorded in the root's own "." entry, which is
+        the first record in the root cluster, so that one is read on its own
+        before the rest of the directory.
+        """
+        raw = self._read_cluster(self.alloc_offset + self.rootdir)
+        dot = self._parse_dirent(raw[:512])
+        return self.read_dir(self.rootdir, dot["length"] if dot else 0)
+
+
+def _decode_tod(raw):
+    """A PS2 ToD stamp as an ISO date string, or None if it was never set."""
+    try:
+        sec, minute, hour, day, month, year = _TOD.unpack(raw)
+    except struct.error:
+        return None
+    if not (1 <= month <= 12 and 1 <= day <= 31 and 1980 <= year <= 2100):
+        return None
+    return f"{year:04d}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:{sec:02d}"
+
+
+def parse_icon_sys(data):
+    """
+    The display title out of a save's icon.sys.
+
+    Titles are Shift-JIS and usually carry a line break offset so the PS2 can
+    render them over two lines; we join them with a space. Returns None for
+    anything that isn't a well formed icon.sys.
+    """
+    if len(data) < ICON_SYS_TITLE_OFFSET + ICON_SYS_TITLE_LENGTH:
+        return None
+    if not data.startswith(ICON_SYS_MAGIC):
+        return None
+
+    raw = data[ICON_SYS_TITLE_OFFSET:ICON_SYS_TITLE_OFFSET + ICON_SYS_TITLE_LENGTH]
+    raw = raw.split(b"\x00")[0]
+
+    break_at = struct.unpack_from("<H", data, ICON_SYS_LINEBREAK_OFFSET)[0]
+    if 0 < break_at < len(raw):
+        parts = [raw[:break_at], raw[break_at:]]
+    else:
+        parts = [raw]
+
+    lines = []
+    for part in parts:
+        try:
+            text = part.decode('shift_jis', 'replace')
+        except LookupError:
+            text = part.decode('ascii', 'replace')
+        text = text.replace("�", "").strip()
+        if text:
+            lines.append(text)
+
+    return " ".join(lines) if lines else None
+
+
+def serial_from_save_name(name):
+    """
+    The game serial a save folder belongs to, e.g. BASLUS-20552 -> SLUS-20552.
+    Returns None for saves that aren't named after a serial, like the system
+    configuration folders.
+    """
+    match = _SERIAL_IN_NAME.search(name.upper())
+    if not match:
+        return None
+    return f"{match.group(1)}-{match.group(2)}"
+
+
+def list_saves(path):
+    """
+    Every save on a card: its folder, the title from icon.sys, the game it
+    belongs to and how much of the card it uses.
+    """
+    import database as db
+
+    with CardReader(path) as card:
+        saves = []
+        for entry in card.root_entries():
+            if not entry["is_dir"] or entry["name"] in (".", ".."):
+                continue
+
+            files = []
+            icon_title = None
+            used = 0
+            try:
+                for child in card.read_dir(entry["cluster"], entry["length"]):
+                    if child["is_dir"] or child["name"] in (".", ".."):
+                        continue
+                    files.append({"name": child["name"], "size": child["length"]})
+                    used += child["length"]
+                    if child["name"].lower() == "icon.sys":
+                        icon_title = parse_icon_sys(
+                            card.read_data(child["cluster"], child["length"]))
+            except ValueError as e:
+                # One unreadable save shouldn't hide the rest of the card.
+                print(f"[VMC] Could not read save {entry['name']}: {e}")
+
+            serial = serial_from_save_name(entry["name"])
+            title = db.query_title_by_serial(serial) if serial else None
+
+            saves.append({
+                "folder": entry["name"],
+                "serial": serial,
+                "title": title,
+                "icon_title": icon_title,
+                "size": used,
+                "file_count": len(files),
+                "files": sorted(files, key=lambda f: f["name"].lower()),
+                "modified": entry["modified"],
+                "created": entry["created"],
+                "cover_url": (f"{system.CONFIG.COVERS_URL}/{serial}.jpg"
+                              if serial and system.CONFIG.COVERS_URL else None),
+            })
+
+    saves.sort(key=lambda s: (s["title"] or s["icon_title"] or s["folder"]).lower())
+    return saves
+
+
+def browse_vmc(name):
+    """Save browser payload for one card."""
+    vmc_dir = get_vmc_dir()
+    if not vmc_dir:
+        return {"status": "error", "message": "No storage device selected."}
+
+    clean = sanitize_name(name)
+    path = os.path.join(vmc_dir, f"{clean}.bin")
+    if not os.path.exists(path):
+        return {"status": "error", "message": f"VMC '{clean}' not found."}
+
+    info = inspect_vmc(path)
+    if not info.get("valid"):
+        return {"status": "error",
+                "message": f"'{clean}' is not a valid memory card: {info.get('reason')}"}
+
+    try:
+        saves = list_saves(path)
+    except ValueError as e:
+        return {"status": "error", "message": f"Could not read '{clean}': {e}"}
+
+    return {
+        "status": "success",
+        "name": clean,
+        "size": info.get("size"),
+        "size_mb": info.get("size_mb"),
+        "free_bytes": info.get("free_bytes"),
+        "saves": saves,
+    }
+
+
+# - - - PCSX2 BRIDGE - - -
+#
+# OPL writes bare 512 byte pages; PCSX2 writes 528 byte pages, the extra 16
+# holding the Hamming codes a real card keeps in its spare area. The two
+# formats are otherwise identical, so converting is adding or removing that
+# spare area page by page.
+
+ECC_PAGE_SIZE = ps2_ecc.PAGE_SIZE + ps2_ecc.SPARE_SIZE
+
+FORMAT_RAW = "raw"
+FORMAT_PCSX2 = "pcsx2"
+
+
+def _card_geometry(header):
+    """(page_count, page_size) from a superblock, or None if it isn't one."""
+    if len(header) < _SUPERBLOCK.size:
+        return None
+    (magic, _v, page_size, pages_per_cluster, _ppb, _u, clusters_per_card,
+     *_rest) = _SUPERBLOCK.unpack(header[:_SUPERBLOCK.size])
+    if not magic.startswith(MAGIC[:27]):
+        return None
+    if page_size != ps2_ecc.PAGE_SIZE:
+        return None
+    return pages_per_cluster * clusters_per_card, page_size
+
+
+def detect_format(path):
+    """
+    Work out whether a card file carries ECC, by comparing its size against
+    the page count its own superblock declares.
+    """
+    with open(path, 'rb') as f:
+        header = f.read(_SUPERBLOCK.size)
+
+    geometry = _card_geometry(header)
+    if not geometry:
+        return None
+    pages, page_size = geometry
+    size = os.path.getsize(path)
+
+    if size == pages * page_size:
+        return FORMAT_RAW
+    if size == pages * ECC_PAGE_SIZE:
+        return FORMAT_PCSX2
+    return None
+
+
+def convert_to_pcsx2(src, dest):
+    """
+    Write `src` out as a PCSX2 .ps2 card, computing the ECC for every page.
+    """
+    written = 0
+    with open(src, 'rb') as fin, open(dest, 'wb') as fout:
+        while True:
+            page = fin.read(ps2_ecc.PAGE_SIZE)
+            if not page:
+                break
+            if len(page) < ps2_ecc.PAGE_SIZE:
+                page += b"\x00" * (ps2_ecc.PAGE_SIZE - len(page))
+            fout.write(page)
+            fout.write(ps2_ecc.spare_for_page(page))
+            written += 1
+        fout.flush()
+        os.fsync(fout.fileno())
+    return written
+
+
+def convert_from_pcsx2(src, dest):
+    """
+    Write a PCSX2 .ps2 card out as an OPL .bin, dropping the spare area.
+
+    Each page is checked against its Hamming codes on the way through, so a
+    card that picked up bit rot is either repaired or reported rather than
+    silently imported.
+    """
+    corrected = 0
+    failed = 0
+    with open(src, 'rb') as fin, open(dest, 'wb') as fout:
+        while True:
+            raw = fin.read(ECC_PAGE_SIZE)
+            if not raw:
+                break
+            if len(raw) < ECC_PAGE_SIZE:
+                raise ValueError("Card ends in the middle of a page.")
+            page, spare = raw[:ps2_ecc.PAGE_SIZE], raw[ps2_ecc.PAGE_SIZE:]
+            status, page = ps2_ecc.check_page(page, spare)
+            if status == ps2_ecc.ECC_CHECK_CORRECTED:
+                corrected += 1
+            elif status == ps2_ecc.ECC_CHECK_FAILED:
+                failed += 1
+            fout.write(page)
+        fout.flush()
+        os.fsync(fout.fileno())
+    return corrected, failed
+
+
+def export_vmc(name, fmt=FORMAT_RAW, workdir=None):
+    """
+    Resolve a card for download.
+
+    Returns a dict with the path to serve, the filename to offer and whether
+    that path is a temporary file the caller has to delete afterwards. The raw
+    format serves the card in place; there is nothing to convert.
+    """
+    vmc_dir = get_vmc_dir()
+    if not vmc_dir:
+        return {"status": "error", "message": "No storage device selected."}
+
+    clean = sanitize_name(name)
+    path = os.path.join(vmc_dir, f"{clean}.bin")
+    if not os.path.exists(path):
+        return {"status": "error", "message": f"VMC '{clean}' not found."}
+
+    info = inspect_vmc(path)
+    if not info.get("valid"):
+        return {"status": "error",
+                "message": f"'{clean}' is not a valid memory card: {info.get('reason')}"}
+
+    if fmt == FORMAT_RAW:
+        return {"status": "success", "path": path,
+                "filename": f"{clean}.bin", "temporary": False}
+
+    if fmt != FORMAT_PCSX2:
+        return {"status": "error", "message": f"Unknown export format '{fmt}'."}
+
+    fd, temp = tempfile.mkstemp(prefix=f"isobe-{clean}-", suffix=".ps2", dir=workdir)
+    os.close(fd)
+    try:
+        convert_to_pcsx2(path, temp)
+    except Exception as e:
+        try:
+            os.remove(temp)
+        except OSError:
+            pass
+        print(f"[VMC] Failed to convert {clean} for PCSX2: {e}")
+        return {"status": "error", "message": f"Conversion failed: {e}"}
+
+    print(f"[VMC] Exported {clean} as PCSX2 .ps2")
+    return {"status": "success", "path": temp,
+            "filename": f"{clean}.ps2", "temporary": True}
+
+
+def import_vmc(src_path, name, overwrite=False):
+    """
+    Bring an external card into the library as a new VMC.
+
+    Accepts either format and always lands an OPL-compatible .bin. Refuses to
+    replace an existing card unless asked to: cards hold saves, and there is no
+    undo once one is overwritten.
+    """
+    vmc_dir = get_vmc_dir()
+    if not vmc_dir:
+        return {"status": "error", "message": "No storage device selected."}
+
+    clean = sanitize_name(name)
+    if not clean:
+        return {"status": "error", "message": "Invalid VMC name."}
+
+    fmt = detect_format(src_path)
+    if not fmt:
+        return {"status": "error",
+                "message": "That file isn't a PS2 memory card, or its size "
+                           "doesn't match the card it describes."}
+
+    os.makedirs(vmc_dir, exist_ok=True)
+    dest = os.path.join(vmc_dir, f"{clean}.bin")
+    if os.path.exists(dest) and not overwrite:
+        return {"status": "error",
+                "message": f"A VMC named '{clean}' already exists."}
+
+    # Convert beside the destination, then move into place, so an interrupted
+    # import can't leave a half written card where OPL will find it.
+    fd, temp = tempfile.mkstemp(prefix=f".isobe-import-{clean}-", dir=vmc_dir)
+    os.close(fd)
+    corrected = failed = 0
+    try:
+        if fmt == FORMAT_PCSX2:
+            corrected, failed = convert_from_pcsx2(src_path, temp)
+        else:
+            shutil.copyfile(src_path, temp)
+
+        info = inspect_vmc(temp)
+        if not info.get("valid"):
+            raise ValueError(info.get("reason") or "not a valid memory card")
+
+        os.replace(temp, dest)
+    except Exception as e:
+        if os.path.exists(temp):
+            try:
+                os.remove(temp)
+            except OSError:
+                pass
+        print(f"[VMC] Import of {clean} failed: {e}")
+        return {"status": "error", "message": f"Import failed: {e}"}
+
+    message = f"Imported {clean}"
+    if fmt == FORMAT_PCSX2:
+        message += " from PCSX2"
+    if corrected:
+        message += f" ({corrected} page(s) repaired)"
+    if failed:
+        message += f" — {failed} page(s) could not be verified"
+
+    print(f"[VMC] {message}")
+    return {
+        "status": "success",
+        "message": message,
+        "source_format": fmt,
+        "pages_repaired": corrected,
+        "pages_failed": failed,
+        "vmc": describe_vmc(dest),
+    }

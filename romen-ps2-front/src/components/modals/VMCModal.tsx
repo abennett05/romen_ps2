@@ -1,20 +1,23 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import Modal from '../Modal';
 import type { Game } from '../../App';
-import { useVMCs, formatBytes } from '../../hooks/useVMCs';
-import { MemoryStick, Trash2, Plus, AlertTriangle, Loader2 } from 'lucide-react';
+import { useVMCs, formatBytes, exportURL } from '../../hooks/useVMCs';
+import { MemoryStick, Trash2, Plus, AlertTriangle, Loader2, Download, Upload, FolderOpen } from 'lucide-react';
 
 interface VMCModalProps {
     isOpen: boolean;
     onClose: () => void;
     games: Game[];
+    onBrowse: (name: string) => void;
 }
 
-const VMCModal: React.FC<VMCModalProps> = ({ isOpen, onClose, games }) => {
-    const { vmcs, sizes, loading, busy, createVMC, deleteVMC } = useVMCs(isOpen);
+const VMCModal: React.FC<VMCModalProps> = ({ isOpen, onClose, games, onBrowse }) => {
+    const { vmcs, sizes, loading, busy, createVMC, deleteVMC, importVMC } = useVMCs(isOpen);
     const [newName, setNewName] = useState('');
     const [newSize, setNewSize] = useState(8);
     const [error, setError] = useState<string | null>(null);
+    const [menuFor, setMenuFor] = useState<string | null>(null);
+    const fileInput = useRef<HTMLInputElement>(null);
 
     // Cards are stored by name, but people recognise their games by title.
     const titleFor = (serial: string) =>
@@ -34,6 +37,14 @@ const VMCModal: React.FC<VMCModalProps> = ({ isOpen, onClose, games }) => {
         }
     };
 
+    const handleImport = async (file: File | undefined) => {
+        if (!file) return;
+        setError(null);
+        // The server names the card after the file, minus its extension.
+        const message = await importVMC(file, '');
+        if (message) setError(message);
+    };
+
     const handleDelete = async (name: string, assigned: string[]) => {
         const warning = assigned.length
             ? `\n\nIt is currently used by ${assigned.length} game(s). They will be unassigned.`
@@ -49,7 +60,8 @@ const VMCModal: React.FC<VMCModalProps> = ({ isOpen, onClose, games }) => {
 
                 <p className="text-sm text-zinc-400">
                     Virtual Memory Cards let games save without a physical memory card.
-                    Assign one to a game from its detail view.
+                    Assign one to a game from its detail view, or open a card to see
+                    what's saved on it.
                 </p>
 
                 {/* --- CREATE --- */}
@@ -92,6 +104,31 @@ const VMCModal: React.FC<VMCModalProps> = ({ isOpen, onClose, games }) => {
                         8 MB matches a real PlayStation 2 memory card. Larger cards hold more
                         saves but a few games refuse to use them.
                     </p>
+
+                    <div className="border-t border-zinc-700 mt-4 pt-3">
+                        <input
+                            ref={fileInput}
+                            type="file"
+                            accept=".ps2,.bin,.mcd,.mcr"
+                            className="hidden"
+                            onChange={(e) => {
+                                handleImport(e.target.files?.[0]);
+                                e.target.value = '';
+                            }}
+                        />
+                        <button
+                            onClick={() => fileInput.current?.click()}
+                            disabled={busy}
+                            className="flex items-center space-x-2 text-sm text-zinc-400 hover:text-sky-400 disabled:opacity-50 transition-colors"
+                        >
+                            <Upload size={16} />
+                            <span>Import a card from PCSX2 or another drive</span>
+                        </button>
+                        <p className="text-xs text-zinc-600 mt-1">
+                            PCSX2 .ps2 cards are converted for OPL automatically. An existing
+                            card of the same name is never replaced.
+                        </p>
+                    </div>
                 </div>
 
                 {error && (
@@ -164,14 +201,59 @@ const VMCModal: React.FC<VMCModalProps> = ({ isOpen, onClose, games }) => {
                                     )}
                                 </div>
 
-                                <button
-                                    onClick={() => handleDelete(vmc.name, vmc.assigned_to)}
-                                    disabled={busy}
-                                    title="Delete card"
-                                    className="shrink-0 p-2 rounded-md text-red-500/70 hover:text-white hover:bg-red-600 disabled:opacity-40 transition-colors"
-                                >
-                                    <Trash2 size={18} />
-                                </button>
+                                <div className="shrink-0 flex items-center space-x-1">
+                                    {vmc.valid && (
+                                        <>
+                                            <button
+                                                onClick={() => onBrowse(vmc.name)}
+                                                title="Browse saves"
+                                                className="p-2 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors"
+                                            >
+                                                <FolderOpen size={18} />
+                                            </button>
+
+                                            <div className="relative">
+                                                <button
+                                                    onClick={() => setMenuFor(menuFor === vmc.name ? null : vmc.name)}
+                                                    title="Download card"
+                                                    className="p-2 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors"
+                                                >
+                                                    <Download size={18} />
+                                                </button>
+
+                                                {menuFor === vmc.name && (
+                                                    <div className="absolute right-0 top-full mt-1 z-10 w-52 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl overflow-hidden">
+                                                        <a
+                                                            href={exportURL(vmc.name, 'raw')}
+                                                            onClick={() => setMenuFor(null)}
+                                                            className="block px-3 py-2 hover:bg-zinc-700 transition-colors"
+                                                        >
+                                                            <p className="text-sm text-zinc-100">{vmc.name}.bin</p>
+                                                            <p className="text-xs text-zinc-500">For OPL and real hardware</p>
+                                                        </a>
+                                                        <a
+                                                            href={exportURL(vmc.name, 'pcsx2')}
+                                                            onClick={() => setMenuFor(null)}
+                                                            className="block px-3 py-2 border-t border-zinc-700 hover:bg-zinc-700 transition-colors"
+                                                        >
+                                                            <p className="text-sm text-zinc-100">{vmc.name}.ps2</p>
+                                                            <p className="text-xs text-zinc-500">For PCSX2, with ECC added</p>
+                                                        </a>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </>
+                                    )}
+
+                                    <button
+                                        onClick={() => handleDelete(vmc.name, vmc.assigned_to)}
+                                        disabled={busy}
+                                        title="Delete card"
+                                        className="p-2 rounded-md text-red-500/70 hover:text-white hover:bg-red-600 disabled:opacity-40 transition-colors"
+                                    >
+                                        <Trash2 size={18} />
+                                    </button>
+                                </div>
                             </div>
                         );
                     })}

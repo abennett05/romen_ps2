@@ -20,6 +20,8 @@
 * **Game Art:** Fetches appropiate artwork for your games to view in the **ISObe** app & OPL.
 * **Game CFG:** Collects information about the game such as Developer, Release Date, Genre, & Description to display in OPL.
 * **Virtual Memory Cards:** Create formatted VMCs (8-64MB) from your browser and assign them to games, so every title can have its own memory card without touching the console's menus. Deleting a game keeps its card, so saves are never lost.
+* **Save Browser:** Open any memory card and see what's on it as a grid of box art, not a list of folder names like `BASLUS-20552`. Each save shows the game it belongs to, the title the PS2 itself displays, its files and when it was last written. Cards are only ever opened read-only — nothing in ISObe can alter or delete a save.
+* **PCSX2 Bridge:** Download a card as `.bin` for OPL, or as `.ps2` for PCSX2 with the error-correcting codes a real card carries. Cards from PCSX2 can be imported the same way and are converted back automatically, so you can play on the couch and carry on at the desk.
 * **One-Click Updates:** When a new release is out, ISObe can download, verify and install it itself, then restart — no unzipping. Updates only ever run when you press the button; ISObe never updates itself in the background, keeps a backup, and rolls back if anything goes wrong. Your settings, library and memory cards are untouched.
 
 ---

@@ -73,6 +73,7 @@ jobs:
         working-directory: romen-ps2-server
         run: |
           python tests/test_vmc.py
+          python tests/test_vmc_saves.py
           python tests/test_updater.py
 
       - name: Assemble package

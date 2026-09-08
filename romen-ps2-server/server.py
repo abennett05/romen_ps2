@@ -1,8 +1,9 @@
 from colorama import Fore, Style
-from fastapi import FastAPI, UploadFile, File, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, BackgroundTasks, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.background import BackgroundTask
 from pydantic import BaseModel
 import uvicorn
 import os
@@ -239,6 +240,72 @@ def create_vmc(payload: VMCCreate):
 def delete_vmc(name: str):
     """Delete a memory card and unbind it from any game using it."""
     return vmc.delete_vmc(name)
+
+
+
+@app.get("/vmc/{name}/saves")
+def browse_vmc(name: str):
+    """Read the saves off a card. Opens the image read-only."""
+    return vmc.browse_vmc(name)
+
+
+@app.get("/vmc/{name}/export")
+def export_vmc(name: str, fmt: str = "raw"):
+    """
+    Download a card, either as-is or converted to PCSX2's .ps2 format.
+
+    The converted file is built in the uploads folder and deleted once the
+    response has been sent; the raw format streams the card itself.
+    """
+    result = vmc.export_vmc(name, fmt, workdir=system.CONFIG.UPLOADS_PATH)
+    if result["status"] != "success":
+        return JSONResponse(status_code=400, content=result)
+
+    cleanup = None
+    if result["temporary"]:
+        cleanup = BackgroundTask(_discard, result["path"])
+
+    return FileResponse(
+        result["path"],
+        media_type="application/octet-stream",
+        filename=result["filename"],
+        background=cleanup,
+    )
+
+
+@app.post("/vmc/import")
+def import_vmc(file: UploadFile = File(...), name: str = Form(None),
+               overwrite: bool = Form(False)):
+    """
+    Add an existing memory card to the library, converting from PCSX2's format
+    if that's what was uploaded.
+    """
+    if not system.CONFIG.UPLOADS_PATH:
+        return {"status": "error", "message": "No storage device selected."}
+
+    os.makedirs(system.CONFIG.UPLOADS_PATH, exist_ok=True)
+    temp_path = os.path.join(system.CONFIG.UPLOADS_PATH, f"vmc-import-{uuid.uuid4().hex}")
+    try:
+        with open(temp_path, 'wb') as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        _discard(temp_path)
+        return {"status": "error", "message": f"Upload failed: {e}"}
+
+    # Fall back to the uploaded filename so a dropped card still gets a name.
+    label = name or os.path.splitext(os.path.basename(file.filename or ""))[0]
+    try:
+        return vmc.import_vmc(temp_path, label, overwrite=overwrite)
+    finally:
+        _discard(temp_path)
+
+
+def _discard(path):
+    """Remove a scratch file, ignoring one that has already gone."""
+    try:
+        os.remove(path)
+    except OSError:
+        pass
 
 
 @app.get("/library/{serial}/vmc")

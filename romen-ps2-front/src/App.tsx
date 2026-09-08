@@ -5,6 +5,7 @@ import AddGameModal from './components/modals/AddGameModal';
 import SettingsModal from './components/modals/SettingsModal';
 import GameViewModal from './components/modals/GameViewModal';
 import VMCModal from './components/modals/VMCModal';
+import SaveBrowserModal from './components/modals/SaveBrowserModal';
 import IconButton from './components/IconButton';
 import { useGameUploads } from './hooks/useGameUploads';
 import axios from 'axios';
@@ -35,6 +36,7 @@ function App() {
   const [storageDevice, setStorageDevice] = useState<StorageDevice | null>(null);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [vmcModalOpen, setVmcModalOpen] = useState(false);
+  const [browsingVMC, setBrowsingVMC] = useState<string | null>(null);
   const { queue, uploadFiles, removeFile, clearCompleted } = useGameUploads();
   
   useEffect(() => {
@@ -123,7 +125,17 @@ function App() {
           <SettingsModal isOpen={settingsModalOpen} onClose={() => {setSettingsModalOpen(false); fetchLibrary();}} device={storageDevice || undefined} onUpdatePath={onUpdatePath} onRefresh={fetchDevice}/>
           <AddGameModal isOpen={gameModalOpen} queue={queue} onUpload={uploadFiles} onClose={handleGameModalClose} onRemove={removeFile} />
           <GameViewModal isOpen={!!selectedGame} onClose={() => setSelectedGame(null)} game={selectedGame} onDelete={handleDeleteGame} />
-          <VMCModal isOpen={vmcModalOpen} onClose={() => setVmcModalOpen(false)} games={games} />
+          <VMCModal
+            isOpen={vmcModalOpen}
+            onClose={() => setVmcModalOpen(false)}
+            games={games}
+            onBrowse={(name) => setBrowsingVMC(name)}
+          />
+          <SaveBrowserModal
+            isOpen={browsingVMC !== null}
+            onClose={() => setBrowsingVMC(null)}
+            vmcName={browsingVMC}
+          />
           <Grid games={games} onGameClick={(game) => setSelectedGame(game)} filter={gameQuery}/>
           <div className="fixed bottom-8 right-8 shadow-lg">
             <IconButton icon={<Plus size={48} className="text-zinc-100" />} bgColor="bg-sky-600" onClick={handleAddGameClick} />

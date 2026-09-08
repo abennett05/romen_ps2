@@ -6,6 +6,7 @@ import json
 import config
 import database as db
 import iso
+import vmc
 import shutil
 import psutil
 import subprocess
@@ -147,12 +148,24 @@ def ProcessUpload(temp_path: str):
 
         # 12. Trigger CFG Download
         download_cfg(serial)
-        
+
+        # 13. Give the game its own memory card, if auto-provisioning is on.
+        # This runs after the CFG download so the slot assignment is written
+        # into the config that was just fetched rather than being overwritten.
+        vmc_result = None
+        if CONFIG.VMC_AUTO_PROVISION:
+            vmc_result = vmc.provision_for_game(serial, CONFIG.VMC_DEFAULT_SIZE_MB)
+            if vmc_result["status"] != "success":
+                # A missing memory card shouldn't fail an otherwise good
+                # upload, so this is reported but not raised.
+                print(f"[VMC] Auto-provision failed for {serial}: {vmc_result['message']}")
+
         return {
             "status": "completed", 
             "message": f"{clean_title} Added To Library", 
             "title": clean_title, 
-            "cover_url": cover_url
+            "cover_url": cover_url,
+            "vmc": vmc_result
         }
 
     except Exception as e:
@@ -298,6 +311,12 @@ def remove_from_library(serial):
                 print(f"[System] Deleted CFG: {cfg_path}")
             except OSError as e:
                 print(f"[System] Error deleting CFG: {e}")
+
+        # --- VMC ---
+        # Deliberately left in place. Deleting the CFG above already drops the
+        # slot assignment, and a memory card may hold saves the user still
+        # wants. Orphaned cards are listed in the VMC manager for review.
+        print(f"[System] Leaving any VMC for {serial} untouched (saves preserved).")
 
         # --- REMOVE FROM DB ---
         db.remove_game_from_library(serial)
@@ -505,3 +524,37 @@ def rebuild_library():
         return {"status": "success", "message": "Successfully rebuilt library database."}
     except Exception as e:
         return {"status": "error", "message": f"Error rebuilding library database: {e}"}
+
+
+def set_vmc_settings(auto_provision=None, default_size_mb=None):
+    """Update the VMC preferences in settings.json and the live config."""
+    global CONFIG
+
+    if default_size_mb is not None and default_size_mb not in vmc.VALID_SIZES_MB:
+        sizes = ", ".join(f"{s}MB" for s in vmc.VALID_SIZES_MB)
+        return {"status": "error", "message": f"Size must be one of: {sizes}."}
+
+    try:
+        with open(SETTINGS_PATH, 'r') as f:
+            data = json.load(f)
+
+        section = data.setdefault('vmc', {})
+        if auto_provision is not None:
+            section['auto_provision'] = bool(auto_provision)
+            CONFIG.VMC_AUTO_PROVISION = bool(auto_provision)
+        if default_size_mb is not None:
+            section['default_size_mb'] = int(default_size_mb)
+            CONFIG.VMC_DEFAULT_SIZE_MB = int(default_size_mb)
+
+        with open(SETTINGS_PATH, 'w') as f:
+            json.dump(data, f, indent=4)
+
+        return {
+            "status": "success",
+            "message": "VMC settings updated",
+            "auto_provision": CONFIG.VMC_AUTO_PROVISION,
+            "default_size_mb": CONFIG.VMC_DEFAULT_SIZE_MB,
+        }
+    except Exception as e:
+        print(f"[Settings] Failed to save VMC settings: {e}")
+        return {"status": "error", "message": str(e)}

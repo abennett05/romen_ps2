@@ -20,5 +20,9 @@
     ],
     "updates": {
         "github_repo": "abennett05/isobe"
+    },
+    "vmc": {
+        "auto_provision": false,
+        "default_size_mb": 8
     }
 }

@@ -42,5 +42,9 @@ yarn-error.log*
 Thumbs.db
 Desktop.ini
 
+# --- Runtime state ---
+last_update.json
+settings.local.json
+
 # --- Release ---
 release/

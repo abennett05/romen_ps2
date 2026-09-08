@@ -6,6 +6,8 @@ class Config:
     DISCS_URL = ""
     CFG_URL = ""
     GITHUB_REPO = ""
+    VMC_AUTO_PROVISION = False
+    VMC_DEFAULT_SIZE_MB = 8
 
     def __init__(self, json_data : list) -> None:
         self.update_entries(json_data)
@@ -20,3 +22,9 @@ class Config:
         # Optional: settings.json written by an older version won't have this,
         # so fall back to the repo baked into version.py.
         self.GITHUB_REPO = json_data.get("updates", {}).get("github_repo", "")
+
+        # Virtual Memory Cards. Absent from settings.json written by older
+        # versions, so both keys fall back to a safe default.
+        vmc = json_data.get("vmc", {})
+        self.VMC_AUTO_PROVISION = bool(vmc.get("auto_provision", False))
+        self.VMC_DEFAULT_SIZE_MB = int(vmc.get("default_size_mb", 8))

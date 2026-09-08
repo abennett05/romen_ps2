@@ -69,6 +69,12 @@ jobs:
           pip install -r requirements.txt
           python -c "import server, updates, version; print('server imports OK, version', version.__version__)"
 
+      - name: Run backend tests
+        working-directory: romen-ps2-server
+        run: |
+          python tests/test_vmc.py
+          python tests/test_updater.py
+
       - name: Assemble package
         id: package
         env:
@@ -115,9 +121,16 @@ jobs:
 
           cd build
           zip -r "${PKG}.zip" "${PKG}" > /dev/null
+
+          # Published alongside the zip so the in-app updater can verify a
+          # download before it replaces anything.
+          sha256sum "${PKG}.zip" > "${PKG}.zip.sha256"
+
           echo "zip=build/${PKG}.zip" >> "$GITHUB_OUTPUT"
+          echo "checksum=build/${PKG}.zip.sha256" >> "$GITHUB_OUTPUT"
           echo "Packaged:"
           unzip -l "${PKG}.zip" | tail -n 5
+          cat "${PKG}.zip.sha256"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -131,6 +144,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
           ZIP: ${{ steps.package.outputs.zip }}
+          CHECKSUM: ${{ steps.package.outputs.checksum }}
         run: |
           set -euo pipefail
           PRERELEASE=""
@@ -138,7 +152,7 @@ jobs:
             *-beta*|*-alpha*|*-rc*) PRERELEASE="--prerelease" ;;
           esac
 
-          gh release create "$TAG" "$ZIP" \
+          gh release create "$TAG" "$ZIP" "$CHECKSUM" \
             --title "$TAG" \
             --generate-notes \
             --verify-tag \

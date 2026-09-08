@@ -7,9 +7,10 @@ interface ModalProps {
   onClose: () => void; // A function that returns nothing
   title: string;
   children: React.ReactNode; // Allows passing JSX elements inside
+  maxWidth?: string; // Tailwind max-w-* class, for modals that need more room
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' }) => {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -26,7 +27,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
       onClick={onClose} 
     >
       <div 
-        className="relative bg-zinc-900 border border-zinc-700 w-full max-w-md p-6 rounded-xl shadow-2xl animate-in fade-in zoom-in duration-200"
+        className={`relative bg-zinc-900 border border-zinc-700 w-full ${maxWidth} p-6 rounded-xl shadow-2xl animate-in fade-in zoom-in duration-200`}
         onClick={(e: React.MouseEvent) => e.stopPropagation()} // Typed event
       >
         <div className="flex justify-between items-center mb-10">

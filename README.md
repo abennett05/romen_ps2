@@ -19,7 +19,8 @@
 * **Cross-Platform:** Runs seamlessly on Windows, macOS, and Linux.
 * **Game Art:** Fetches appropiate artwork for your games to view in the **ISObe** app & OPL.
 * **Game CFG:** Collects information about the game such as Developer, Release Date, Genre, & Description to display in OPL.
-* **Update Checks:** Tells you from inside the app when a newer release is available, with a direct download link.
+* **Virtual Memory Cards:** Create formatted VMCs (8-64MB) from your browser and assign them to games, so every title can have its own memory card without touching the console's menus. Deleting a game keeps its card, so saves are never lost.
+* **One-Click Updates:** When a new release is out, ISObe can download, verify and install it itself, then restart — no unzipping. Updates only ever run when you press the button; ISObe never updates itself in the background, keeps a backup, and rolls back if anything goes wrong. Your settings, library and memory cards are untouched.
 
 ---
 

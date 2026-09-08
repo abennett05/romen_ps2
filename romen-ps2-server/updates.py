@@ -129,6 +129,19 @@ def _pick_asset(release: dict) -> dict:
     return assets[0] if assets else {}
 
 
+def _pick_checksum(release: dict, asset_name: str) -> str:
+    """
+    The .sha256 published alongside the build, if there is one. Releases from
+    before checksums were added simply don't have it, so this returns None and
+    the updater falls back to the zip's own CRCs.
+    """
+    for asset in release.get("assets") or []:
+        name = str(asset.get("name", ""))
+        if name.lower().endswith(".sha256") and (not asset_name or name.startswith(asset_name)):
+            return asset.get("browser_download_url")
+    return None
+
+
 def format_release(release: dict) -> dict:
     """Trim a GitHub release payload down to what the frontend actually renders."""
     asset = _pick_asset(release)
@@ -143,6 +156,7 @@ def format_release(release: dict) -> dict:
         "prerelease": bool(release.get("prerelease")),
         "download_url": asset.get("browser_download_url"),
         "download_name": asset.get("name"),
+        "checksum_url": _pick_checksum(release, asset.get("name", "")),
         "download_size": asset.get("size"),
         "download_count": asset.get("download_count"),
     }

@@ -1,8 +1,8 @@
-import { Settings } from 'lucide-react';
+import { Settings, MemoryStick } from 'lucide-react';
 import React from 'react';
 import SearchBar from './SearchBar';
 
-const Header : React.FC<{ setSettingsModalOpen: (open: boolean) => void; OnQuery : (query: string) => void}> = ({ setSettingsModalOpen, OnQuery }) => {
+const Header : React.FC<{ setSettingsModalOpen: (open: boolean) => void; setVmcModalOpen: (open: boolean) => void; OnQuery : (query: string) => void}> = ({ setSettingsModalOpen, setVmcModalOpen, OnQuery }) => {
     return (
         <header className="sticky top-0 z-50 w-full bg-zinc-900 shadow-md flex items-center p-5">
             
@@ -23,8 +23,12 @@ const Header : React.FC<{ setSettingsModalOpen: (open: boolean) => void; OnQuery
                 </div>
             </div>
 
-            {/* Right Section: Settings */}
-            <div className="flex-1 flex justify-end">
+            {/* Right Section: Memory Cards & Settings */}
+            <div className="flex-1 flex justify-end items-center space-x-6">
+                <MemoryStick
+                    className="text-zinc-500 scale-125 cursor-pointer hover:scale-130 hover:text-sky-600 transition-all duration-200"
+                    onClick={() => setVmcModalOpen(true)}
+                />
                 <Settings 
                     className="text-zinc-500 scale-125 cursor-pointer hover:scale-130 hover:text-sky-600 transition-all duration-200" 
                     onClick={() => setSettingsModalOpen(true)} 

@@ -3,16 +3,20 @@ from fastapi import FastAPI, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 import uvicorn
 import os
 import shutil
 import uuid
+from typing import Optional
 
 # local modules
 import system
 from system import *
 import updates
+import updater
 import version
+import vmc
 
 #  - - - CONFIGURABLE - - -
 # Routes to the index.html that houses our React app. The packaged release ships
@@ -54,6 +58,22 @@ if os.path.exists(img_path):
 # - - - APP SETUP - - -
 
 JOB_RESULT = {}
+
+
+class VMCCreate(BaseModel):
+    name: str
+    size_mb: int = 8
+
+
+class VMCAssign(BaseModel):
+    name: str
+    slot: int = 0
+
+
+class VMCSettings(BaseModel):
+    auto_provision: Optional[bool] = None
+    default_size_mb: Optional[int] = None
+
 
 def process_upload_wrapper(temp_path: str, job_id: str):
     try:
@@ -141,6 +161,12 @@ def set_device(path: str):
 
 # - - - GITHUB RELEASES - - -
 
+def _uploads_in_flight():
+    """Job ids still copying to the drive. Updating would kill the transfer."""
+    return [job for job, result in JOB_RESULT.items()
+            if isinstance(result, dict) and result.get("status") == "processing"]
+
+
 @app.get("/version")
 def get_version():
     """The version of ISObe that is currently running."""
@@ -159,7 +185,95 @@ def get_releases(limit: int = 10, force: bool = False):
     except Exception as e:
         return {"status": "error", "message": str(e), "releases": []}
 
+@app.post("/updates/install")
+def install_update(force: bool = False):
+    """
+    Download and install the newest release, then restart.
+
+    Only ever reached because the user pressed the button: ISObe does not
+    update itself in the background, and the update check never triggers this.
+    """
+    busy = _uploads_in_flight()
+    if busy:
+        return {
+            "status": "error",
+            "message": f"{len(busy)} game(s) still transferring to the drive. "
+                       "Wait for them to finish, then update.",
+        }
+    return updater.start_install(force=force)
+
+
+@app.get("/updates/install/status")
+def install_status():
+    """Progress of a running install, plus the outcome of the last one."""
+    return updater.get_state()
+
+
+@app.post("/updates/install/dismiss")
+def dismiss_install_result():
+    """Clear the banner reporting how the last install went."""
+    updater.clear_last_result()
+    return {"status": "success"}
+
 # - - - GITHUB RELEASES - - -
+
+# - - - VIRTUAL MEMORY CARDS - - -
+
+@app.get("/vmc")
+def list_vmcs():
+    """Every VMC on the drive, with the games each is bound to."""
+    return {
+        "status": "success",
+        "sizes": list(vmc.VALID_SIZES_MB),
+        "vmcs": vmc.list_vmcs(),
+    }
+
+
+@app.post("/vmc")
+def create_vmc(payload: VMCCreate):
+    """Create and format a new memory card."""
+    return vmc.create_vmc(payload.name, payload.size_mb)
+
+
+@app.delete("/vmc/{name}")
+def delete_vmc(name: str):
+    """Delete a memory card and unbind it from any game using it."""
+    return vmc.delete_vmc(name)
+
+
+@app.get("/library/{serial}/vmc")
+def get_game_vmc(serial: str):
+    """The VMC bound to each of a game's two memory card slots."""
+    return {"status": "success", "slots": vmc.get_assignments(serial)}
+
+
+@app.post("/library/{serial}/vmc")
+def assign_game_vmc(serial: str, payload: VMCAssign):
+    """Bind a VMC to one of a game's memory card slots."""
+    return vmc.assign_vmc(serial, payload.name, payload.slot)
+
+
+@app.delete("/library/{serial}/vmc/{slot}")
+def unassign_game_vmc(serial: str, slot: int):
+    """Clear one of a game's memory card slots."""
+    return vmc.unassign_vmc(serial, slot)
+
+
+@app.get("/settings/vmc")
+def get_vmc_settings():
+    return {
+        "status": "success",
+        "auto_provision": system.CONFIG.VMC_AUTO_PROVISION,
+        "default_size_mb": system.CONFIG.VMC_DEFAULT_SIZE_MB,
+        "sizes": list(vmc.VALID_SIZES_MB),
+    }
+
+
+@app.post("/settings/vmc")
+def update_vmc_settings(payload: VMCSettings):
+    return system.set_vmc_settings(payload.auto_provision, payload.default_size_mb)
+
+# - - - VIRTUAL MEMORY CARDS - - -
 
 # Serve actual web app
 @app.get("/{full_path:path}")
